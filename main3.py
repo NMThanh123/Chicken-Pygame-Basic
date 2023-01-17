@@ -1,3 +1,6 @@
+# Link download code trên Github
+# https://github.com/NMThanh123/Chicken-Invaders.git
+
 import pygame
 import os
 import random
@@ -5,6 +8,7 @@ pygame.init()
 
 WIDTH, HEIGHT = 1000, 950
 WIN = pygame.display.set_mode((WIDTH, HEIGHT))
+start = True
 pygame.display.set_caption("Checken Invaders")
 pygame.display.set_icon(pygame.image.load(os.path.join("assets", "icon-chicken.png")))
 sound = pygame.mixer.Sound(os.path.join("sound.wav"))
@@ -54,6 +58,10 @@ ORANGE_LASER = pygame.image.load(os.path.join("assets", "bullet4.png"))
 ORANGE_LASER = pygame.transform.scale(ORANGE_LASER, (90, 80))
 BLUE_LASER = pygame.image.load(os.path.join("assets", "bullet5.png"))
 BLUE_LASER = pygame.transform.scale(BLUE_LASER, (85, 60))
+CHICKEN = pygame.image.load(os.path.join("assets", "chicken.png"))
+CHICKEN = pygame.transform.scale(CHICKEN, (20, 40))
+ROCKET = pygame.image.load(os.path.join("assets", "rocket.png"))
+ROCKET = pygame.transform.scale(ROCKET, (40, 40))
 
 # Lasers enemy
 EGG_1 = pygame.image.load(os.path.join("assets", "egg.png"))
@@ -67,7 +75,7 @@ EGG_3 = pygame.transform.scale(EGG_3, (20,25))
 BG = pygame.transform.scale(pygame.image.load(os.path.join("assets", "background.png")), (WIDTH, HEIGHT))
 BG1 = pygame.transform.scale(pygame.image.load(os.path.join("assets", "bg1.jpg")), (WIDTH, HEIGHT))
 
-class Egg:
+class Egg: 
     def __init__(self, x, y, img):
         self.x = x
         self.y = y
@@ -140,6 +148,7 @@ class Player(Plan):
         self.laser_img = BLUE_LASER
         self.mask = pygame.mask.from_surface(self.img)
         self.max_health = health
+        self.chicken = []
 
     def move_lasers(self, vel, objs):
         self.cooldown()
@@ -151,7 +160,12 @@ class Player(Plan):
                 if type(objs) is list:
                     for obj in objs:
                         if laser.collision(obj):
+                            x = obj.x
+                            y = obj.y
+                            chicken_thighs = Egg(x+20,y+10, CHICKEN)
                             objs.remove(obj)
+                            self.chicken.append(chicken_thighs)
+            
                             if laser in self.lasers:
                                 self.lasers.remove(laser)
                 else:
@@ -288,6 +302,8 @@ def main():
     FPS = 60
     level = 0
     lives = 5
+    rocket = 0
+    chicken_thigh_nums = 0
     main_font = pygame.font.SysFont("comicsans", 25)
     lost_font = pygame.font.SysFont("comicsans", 60)
     win_font = pygame.font.SysFont("comicsans", 60)
@@ -330,20 +346,26 @@ def main():
         for enemy in enemies:
             enemy.draw(WIN)
         
+        for chicken_thigh in player.chicken:
+            chicken_thigh.draw(WIN)
+    
         if collide(box_bullet, player):
             player.laser_img = box_bullet.laser
             box_bullet.creat_box_new()
-            
+        
         # draw text
         lives_label = main_font.render(f"Lives: {lives}", 1, (255,255,255))
         level_label = main_font.render(f"Level: {level}", 1, (255,255,255))
         text_hp = main_font.render(f"HP: ", 1, (255,255,255))
+        rocket_label = main_font.render(f": {rocket}", 1, (255,255,255))
 
         WIN.blit(lives_label, (10, 10))
         WIN.blit(level_label, (WIDTH - level_label.get_width() - 10, 10))
         WIN.blit(text_hp, (10, 45))
+        WIN.blit(ROCKET, (10, 80))
+        WIN.blit(rocket_label, (60, 80))
 
-        if level == 5:
+        if level == 4:
             boss.move()        
             boss.draw(WIN)  
             boss.shoot()
@@ -354,11 +376,15 @@ def main():
                 WIN.blit(win_label, (WIDTH/2 - win_label.get_width()/2, 400))
                 boss.y = -1000
                 boss.lasers = []
-                
+        
+        if level < 4:
+            player.move_lasers(-laser_vel_player, enemies)      
+
         if lost:
             lost_label = lost_font.render("You Lost!!", 1, (255,255,255))
             WIN.blit(lost_label, (WIDTH/2 - lost_label.get_width()/2, 400))
             bg1.speed = 0  
+            pygame.mixer.Sound.stop(sound)
         
         pygame.display.update()
 
@@ -369,6 +395,15 @@ def main():
         if lives <= 0 or player.health <= 0:
             lost = True
             lost_count += 1
+
+        for chicken_thigh in player.chicken:
+            if collide(chicken_thigh, player):
+                player.chicken.remove(chicken_thigh)
+                chicken_thigh_nums += 1  
+
+        if chicken_thigh_nums == 10:
+            rocket += 1   
+            chicken_thigh_nums = 0
 
         if lost:
             if lost_count > FPS * 3:
@@ -383,7 +418,7 @@ def main():
                 enemy = Chicken(random.randrange(60, WIDTH-100), random.randrange(-1500, -100), random.choice(["red", "blue", "green", "white", "brown", "police", "fly"]))
                 enemies.append(enemy) 
 
-        if level == 5:
+        if level == 4:
             bg1.speed = 0     
             enemy_vel = 0           
         
@@ -398,7 +433,9 @@ def main():
                     laser_vel_player = 4
                     player_vel = 5
                     vel_box = 2
-                    bg1.speed = 1  
+                    bg1.speed = 1
+                if event.button == 1 and start:
+                    player.shoot()
            
         keys = pygame.key.get_pressed()
         if keys[pygame.K_LEFT] and player.x - player_vel > -50: # left
@@ -407,11 +444,11 @@ def main():
             player.x += player_vel
         if keys[pygame.K_UP] and player.y - player_vel > 0: # up
             player.y -= player_vel
-        if keys[pygame.K_DOWN] and player.y + player_vel + player.get_height() + 5 < HEIGHT: # down
+        if keys[pygame.K_DOWN] and player.y + player_vel + player.get_height() + 5 < HEIGHT+50: # down
             player.y += player_vel
-        if keys[pygame.K_SPACE]:
+        if keys[pygame.K_SPACE] :
             player.shoot()
-        if keys[pygame.K_ESCAPE]:
+        if keys[pygame.K_ESCAPE] :
             enemy_vel = 0
             laser_vel_enemy = 0
             player_vel = 0
@@ -434,8 +471,8 @@ def main():
                 lives -= 1
                 enemies.remove(enemy) 
 
-        if level < 5:
-            player.move_lasers(-laser_vel_player, enemies)
+        for chicken_thigh in player.chicken:
+            chicken_thigh.move(3)  
 
 def main_menu():
     title_font = pygame.font.SysFont("comicsans", 60)
